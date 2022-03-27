@@ -1,0 +1,16 @@
+Firefox(
+  cmd: "firefox",
+  args: "-P",
+  profileDirs: [
+    "~/.mozilla/firefox/"
+  ],
+  profileRegEx: ".*\\.(\\S+)$",
+  addEntries: [
+    (
+      name: "Manage Firefox Profiles",
+      args: "-ProfileManager",
+    ),
+  ]
+  icon: "firefox",
+  shorthand: "ff",
+)

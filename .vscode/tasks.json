@@ -1,0 +1,36 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "install rustup",
+      "linux": {
+          "command": "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+      },
+      "type": "shell",
+      "group": "build",
+    },
+    {
+      "label": "test",
+      "command": "cargo test",
+      "type": "shell",
+      "group": "test"
+    },
+    {
+      "label": "check",
+      "command": "cargo check",
+      "type": "shell",
+      "group": "build"
+    },
+    {
+      "label": "build",
+      "command": "cargo build",
+      "type": "shell",
+      "group": "build"
+    },
+    {
+      "label": "test & build",
+      "dependsOn": ["test", "check"],
+      "group": "build"
+    }
+  ]
+}
