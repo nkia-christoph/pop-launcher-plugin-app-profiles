@@ -1,0 +1,12 @@
+(
+  shorthand: "vs",
+  cmd: "/usr/share/code/code",
+  args: " --enable-features=UseOzonePlatform --ozone-platform=wayland --unity-launch %F",
+  profile_dirs: [
+    "~/.config/Code/Workspaces/",
+    "~/",
+  ],
+  profile_regex: "(.*)\\.code-workspace$",
+  opt_entries: None,
+  icon: Some("com.visualstudio.code"),
+)

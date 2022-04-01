@@ -2,7 +2,8 @@
   name: "App Profiles",
   description: "Launch specified Apps with Profiles\nSyntax: { <2CharAppShorthand> } <ProfileName>\nExample: ff MyFirefoxProfile",
   bin: (
-    path: "./src/main.rs" //"./ff-profiles ",
+    path: "app-profiles",
+    //args: ["-v"],
   )
   icon: Name("utilities-terminal"),
   query: (
@@ -13,6 +14,6 @@
     // Optional -- avoid sorting results from this plugin
     no_sort: false,
     // Optional -- pattern that a query must have to be sent to plugin
-    regex: "^\\s{2} " // "^.. .+/i"
+    regex: "^(\\s{2} .*?)$" // "^.. .+/i"
   )
 )

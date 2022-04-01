@@ -16,6 +16,12 @@
       "group": "test"
     },
     {
+      "label": "move",
+      "command": "cp target/debug/app-profiles ./app-profiles",
+      "type": "shell",
+      "group": "test"
+    },
+    {
       "label": "check",
       "command": "cargo check",
       "type": "shell",

@@ -1,16 +1,17 @@
-Firefox(
+(
+  shorthand: "ff",
   cmd: "firefox",
   args: "-P",
-  profileDirs: [
-    "~/.mozilla/firefox/"
+  profile_dirs: [
+    "~/.mozilla/firefox"
   ],
-  profileRegEx: ".*\\.(\\S+)$",
-  addEntries: [
+  profile_regex: r"^(?:.*\d+.*)\.(\S+)$", // "(?:.*\\d+.*))\\.(\\S+)$"
+  opt_entries: Some([
     (
-      name: "Manage Firefox Profiles",
-      args: "-ProfileManager",
+      name: "Manage Profiles",
+      cmd: None,
+      args: Some("-ProfileManager"),
     ),
-  ]
-  icon: "firefox",
-  shorthand: "ff",
+  ]),
+  icon: Some("firefox"),
 )
