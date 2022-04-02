@@ -8,7 +8,6 @@ use async_std::{
     ErrorKind::InvalidInput,
     Result as AsyncResult,
   },
-  //println,
 };
 use futures_lite::{
   AsyncWrite,
@@ -18,10 +17,10 @@ use futures_lite::{
 use pop_launcher::{
   async_stdin,
   async_stdout,
-  //IconSource,
+  IconSource,
   json_input_stream,
   PluginResponse,
-  //PluginSearchResult,
+  PluginSearchResult,
   Request,
 };
 use serde_json;
@@ -109,25 +108,23 @@ impl <W: AsyncWrite + Unpin> App<W> {
 
     let mut m: bool = false;
 
-    for app_config in self.catalogue.iter() {
+    for app_config in self.catalogue.clone().iter() {
       let shorthand = app_config.conf.shorthand.to_ascii_lowercase();
       let match_app = query.contains(&shorthand);
 
       if match_app {
-        for (_id, profile) in app_config.entries.iter().enumerate() {
+        for (id, profile) in app_config.entries.iter().enumerate() {
           let match_profile = profile.name.contains(&query);
 
           if match_profile {
-            /*
             self.send(PluginResponse::Append(PluginSearchResult {
               id: id as u32,
-              name: profile.name,
-              description: profile.path.clone(),
+              name: profile.name.clone().into(),
+              description: profile.path.clone().into(),
               icon: app_config.conf.icon.as_ref()
                 .map(|icon| IconSource::Name(icon.clone().into())),
               ..Default::default()
-            })).await;
-            */
+            })).await.unwrap();
 
             m = true;
           }
@@ -136,22 +133,20 @@ impl <W: AsyncWrite + Unpin> App<W> {
     }
 
     if m == false {
-      let mut _id = 0;
+      let mut id = 0;
 
-      for app_config in self.catalogue.iter() {
-        for _entry in app_config.entries.iter() {
-          /*
+      for app_config in self.catalogue.clone().iter() {
+        for entry in app_config.entries.iter() {
           self.send(PluginResponse::Append(PluginSearchResult {
             id: id as u32,
-            name: /*app_conf.name +*/entry.name.clone(),
-            description: entry.path.clone(),
+            name: /*app_conf.name +*/entry.name.clone().into(),
+            description: entry.path.clone().into(),
             icon: app_config.conf.icon.as_ref()
               .map(|icon| IconSource::Name(icon.clone().into())),
             ..Default::default()
-          })).await;
-          */
+          })).await.unwrap();
 
-          _id += 1;
+          id += 1;
         }
       }
     }
