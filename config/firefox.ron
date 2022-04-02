@@ -5,7 +5,7 @@
   profile_dirs: [
     "~/.mozilla/firefox"
   ],
-  profile_regex: r"^(?:.*\d+.*)\.(\S+)$", // "(?:.*\\d+.*))\\.(\\S+)$"
+  profile_regex: r"^(?:.*\d+.*)\.(\S+)$",
   opt_entries: Some([
     (
       name: "Manage Profiles",
