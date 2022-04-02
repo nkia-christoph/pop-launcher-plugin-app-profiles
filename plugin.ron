@@ -1,19 +1,16 @@
 (
-  name: "App Profiles",
-  description: "Launch specified Apps with Profiles\nSyntax: { <2CharAppShorthand> } <ProfileName>\nExample: ff MyFirefoxProfile",
+  name: "App profiles",
+  description: "Syntax: <2CharShorthand> <ProfileName>\nExample: ff MyFirefoxProfile",
+  query: (
+    regex: r"^(\S{2}) .*?$",
+    help: "",
+    isolate: true,
+    no_sort: false,
+    persistent: false,
+  ),
   bin: (
     path: "app-profiles",
-    //args: ["-v"],
-  )
+    // args: ["-v"],
+  ),
   icon: Name("utilities-terminal"),
-  query: (
-    // Optional -- if we should isolate this plugin when the regex matches
-    isolate: true,
-    // Optional -- Plugin which searches on empty queries
-    persistent: false,
-    // Optional -- avoid sorting results from this plugin
-    no_sort: false,
-    // Optional -- pattern that a query must have to be sent to plugin
-    regex: "^(\\s{2} .*?)$" // "^.. .+/i"
-  )
 )
