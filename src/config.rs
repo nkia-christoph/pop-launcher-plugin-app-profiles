@@ -124,7 +124,7 @@ pub fn load_catalogue() -> Result<AppCataloge, Box<dyn Error>> {
                 cmd: [
                   ron.cmd.clone(),
                   ron.args.clone(),
-                  p.get(0).unwrap().as_str().to_string()
+                  p.get(0).unwrap().as_str().to_owned()
                 ].join(" "),
               }));
               info!("[OK] matched file {}/{} as {}", abs_dir.to_string_lossy(), &str_fn, &name);
@@ -143,10 +143,10 @@ pub fn load_catalogue() -> Result<AppCataloge, Box<dyn Error>> {
             Some(cmd) => {
               app_entries.push(Rc::new(AppEntry{
                 name: opt.name.to_case(Title),
-                path: "optional".to_string(),
+                path: "optional".to_owned(),
                 cmd: [
                   cmd.clone(),
-                  opt.args.clone().unwrap_or("".to_string())
+                  opt.args.clone().unwrap_or("".to_owned())
                 ].join(" "),
               }));
               info!("found cmd {}", &cmd);
@@ -154,10 +154,10 @@ pub fn load_catalogue() -> Result<AppCataloge, Box<dyn Error>> {
             None => {
               app_entries.push(Rc::new(AppEntry{
                 name: opt.name.to_case(Title),
-                path: "optional".to_string(),
+                path: "optional".to_owned(),
                 cmd: [
                   ron.cmd.clone(),
-                  opt.args.clone().unwrap_or("".to_string())
+                  opt.args.clone().unwrap_or("".to_owned())
                 ].join(" "),
               }));
               info!("found no cmd");
