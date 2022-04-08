@@ -2,15 +2,15 @@
   name: "App profiles",
   description: "Syntax: <2CharShorthand> <ProfileName>\nExample: ff MyFirefoxProfile",
   query: (
-    regex: r"^(\S{2}) .*?$",
+    regex: r"^(\S{2} ).*$",
     help: "",
     isolate: true,
-    no_sort: false,
+    no_sort: true,
     persistent: false,
   ),
   bin: (
     path: "app-profiles",
-    // args: ["-v"],
+    args: ["-v"],
   ),
-  icon: Name("utilities-terminal"),
+  icon: Name("new-window-symbolic"),
 )

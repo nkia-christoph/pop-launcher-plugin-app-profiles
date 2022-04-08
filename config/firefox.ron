@@ -8,7 +8,8 @@
   profile_regex: r"^(?:.*\d+.*)\.(\S+)$",
   opt_entries: Some([
     (
-      name: "Manage Profiles",
+      name: "Manage",
+      desc: Some("Manage Firefox Profiles"),
       cmd: None,
       args: Some("-ProfileManager"),
     ),
