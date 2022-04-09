@@ -10,33 +10,48 @@
       "group": "build",
     },
     {
-      "label": "test",
-      "command": "cargo test",
+      "label": "test user",
+      "command": "make",
+      "args": ["test_user"],
       "type": "shell",
-      "group": "test"
+      "group": "test",
     },
     {
-      "label": "move",
-      "command": "cp target/debug/app-profiles ./app-profiles",
+      "label": "test system",
+      "command": "make",
+      "args": ["test_system"],
       "type": "shell",
-      "group": "test"
+      "group": "test",
+    },
+    {
+      "label": "install user",
+      "command": "make",
+      "args": ["install_user"],
+      "type": "shell",
+      "group": "build",
+    },
+    {
+      "label": "install system",
+      "command": "make",
+      "args": ["install_system"],
+      "type": "shell",
+      "group": "build",
     },
     {
       "label": "check",
       "command": "cargo check",
       "type": "shell",
-      "group": "build"
     },
     {
-      "label": "build",
-      "command": "cargo build",
+      "label": "test",
+      "command": "cargo test",
       "type": "shell",
-      "group": "build"
     },
     {
-      "label": "test & build",
-      "dependsOn": ["test", "check"],
-      "group": "build"
+      "label": "test",
+      "dependsOn": ["check", "test"],
+      "dependsOrder": "parallel",
+      "group": "test",
     }
   ]
 }

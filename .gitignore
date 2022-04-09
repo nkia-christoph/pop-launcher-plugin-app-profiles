@@ -1,4 +1,4 @@
 target
 Cargo.lock
 app-profiles
-*.log
+log/*.log

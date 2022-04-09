@@ -30,17 +30,20 @@ In `app-profiles/config` create an `{app}.ron` file for each app you want to lau
 ( // class name leads to error
   // shorthand to trigger search and view of profiles
   shorthand: "ff",
-  cmd: "firefox",
+  cmd: "/usr/bin/firefox", // "firefox"
   args: "-P",
   profile_dirs: [
-    "~/.mozilla/firefox/"
+    "~/.mozilla/firefox"
   ],
-  // regex to get display name from file. it will be coverted to title case, e.g.: a1s23df4.default -> Default
-  profile_regex: r"^(?:.*\d+.*)\.(\S+)$", // "(?:.*\\d+.*))\\.(\\S+)$"
+  // if profile_filename is given, profile_regex will be applied to the file contents instead of the filenames of the files in profile_dirs.
+  profile_filename: Some("profiles.ini"),
+  // regex to match profiles or profile names in file or directory - capture name with group!
+  profile_regex: r"\[Profile\d+\]\nName=(.+)\n", // "\\[Profile\\d+\\]\\nName=(.+)\\n"
   // other entries to add
   opt_entries: Some([
     (
       name: "Manage Profiles",
+      desc: Some("Manage Firefox Profiles"),
       // will use std cmd
       cmd: None,
       args: Some("-ProfileManager"),
@@ -57,7 +60,7 @@ See [Usage](#usage) for this example in action.
 ## Roadmap 🚀
 
 until 0.2.0 & release:
-- [ ] 🤪 get it working as a plugin
+- [x] 🤪 get it working as a plugin
 
 until 1.0.0:
 - [ ] 🎓 nicer control flow & error handling (match, collect, map, etc.)

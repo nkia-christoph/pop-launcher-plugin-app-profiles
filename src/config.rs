@@ -16,13 +16,14 @@ use std::{
   fs::{
     File,
     read_dir,
+    read_to_string,
   },
   io::BufReader,
   path::PathBuf,
   rc::Rc,
 };
 
-const CONFIG: &str = "/config/*.ron";
+const CONFIG_PAT: &str = "/config/*.ron";
 
 #[allow(dead_code)]
 #[derive(Deserialize, Debug)]
@@ -31,6 +32,7 @@ pub struct Ron {
   cmd: String,
   args: String,
   profile_dirs: Vec<String>,
+  profile_filename: Option<String>,
 
   #[serde(with = "serde_regex")]
   profile_regex: Regex,
@@ -43,6 +45,7 @@ pub struct Ron {
 #[derive(Deserialize, Debug)]
 pub struct OptEntry{
   name: String,
+  desc: Option<String>,
   cmd: Option<String>,
   args: Option<String>,
 }
@@ -51,13 +54,14 @@ pub type AppCataloge = Vec<Rc<AppConfig>>;
 pub type AppEntries = Vec<Rc<AppEntry>>;
 
 pub struct AppConfig {
+  pub name: String,
   pub conf: Rc<Ron>,
   pub entries: AppEntries,
 }
 
 pub struct AppEntry {
   pub name: String,
-  pub path: String,
+  pub desc: String,
   pub cmd: String,
 }
 
@@ -69,9 +73,9 @@ fn load_ron(file_path: &str) -> Result<Ron, Box<dyn Error>> {
   Ok(from_reader(reader)?)
 }
 
-fn get_rons() -> Result<Paths, Box<PatternError>> {
+fn get_rons(path: &PathBuf) -> Result<Paths, Box<PatternError>> {
 
-  let glob_pat = current_dir().unwrap().display().to_string() + CONFIG;
+  let glob_pat = path.to_string_lossy() + CONFIG_PAT;
   info!("getting rons with glob: {}", glob_pat);
   let options = MatchOptions {
     case_sensitive: false,
@@ -81,13 +85,13 @@ fn get_rons() -> Result<Paths, Box<PatternError>> {
   Ok(glob_with(&glob_pat, options)?)
 }
 
-pub fn load_catalogue() -> Result<AppCataloge, Box<dyn Error>> {
+pub fn load_catalogue(path: PathBuf) -> Result<AppCataloge, Box<dyn Error>> {
   let mut app_cat: AppCataloge = vec![];
 
   // TODO tidy up with collect https://doc.rust-lang.org/book/ch13-03-improving-our-io-project.html#making-code-clearer-with-iterator-adaptors
-  for _entry in get_rons()? {
+  for _entry in get_rons(&path)? {
     if let Ok(path) = _entry {
-      let path_str = path.display().to_string();
+      let path_str = path.to_string_lossy();
 
       info!("searching in path {}", &path_str);
 
@@ -105,6 +109,34 @@ pub fn load_catalogue() -> Result<AppCataloge, Box<dyn Error>> {
 
         info!("searching in dir {}", abs_dir.to_string_lossy());
 
+        match ron.profile_filename.clone() {
+          Some(p_fn) => {
+            info!("filename: {}, scanning file...", &p_fn);
+            let p_file = read_to_string(abs_dir.join(&p_fn))
+              .expect("Something went wrong reading the file");
+            ron.profile_regex.captures_iter(&p_file).for_each(|p| {
+              let name = p
+                .get(1)
+                .expect((format!("no group matched for name! check regex in {}", &path_str)).as_str())
+                .as_str();
+              app_entries.push(Rc::new(AppEntry{
+                name: name.to_case(Title),
+                desc: "".to_owned(),
+                cmd: [
+                  ron.cmd.clone(),
+                  ron.args.clone(),
+                  format!("'{}'", name)
+                ].join(" "),
+              }));
+              info!("[OK] matched profilefile {}", &name);
+            });
+
+
+            continue
+          },
+          None => (),
+        }
+
         for profile in read_dir(abs_dir.to_string_lossy().as_ref())? {
           let os_fn = profile?.file_name();
           let str_fn = os_fn.to_str().unwrap();
@@ -120,11 +152,14 @@ pub fn load_catalogue() -> Result<AppCataloge, Box<dyn Error>> {
                 .to_case(Title);
               app_entries.push(Rc::new(AppEntry{
                 name: name.clone(),
-                path: String::from(&path_str),
+                desc: "".to_owned(),
                 cmd: [
                   ron.cmd.clone(),
                   ron.args.clone(),
-                  p.get(0).unwrap().as_str().to_owned()
+                  format!("{}/{}",
+                    abs_dir.to_string_lossy(),
+                    p.get(0).unwrap().as_str().to_owned()
+                  )
                 ].join(" "),
               }));
               info!("[OK] matched file {}/{} as {}", abs_dir.to_string_lossy(), &str_fn, &name);
@@ -143,7 +178,7 @@ pub fn load_catalogue() -> Result<AppCataloge, Box<dyn Error>> {
             Some(cmd) => {
               app_entries.push(Rc::new(AppEntry{
                 name: opt.name.to_case(Title),
-                path: "optional".to_owned(),
+                desc: opt.desc.clone().unwrap_or(String::from("optional")),
                 cmd: [
                   cmd.clone(),
                   opt.args.clone().unwrap_or("".to_owned())
@@ -154,7 +189,7 @@ pub fn load_catalogue() -> Result<AppCataloge, Box<dyn Error>> {
             None => {
               app_entries.push(Rc::new(AppEntry{
                 name: opt.name.to_case(Title),
-                path: "optional".to_owned(),
+                desc: opt.desc.clone().unwrap_or(String::from("optional")),
                 cmd: [
                   ron.cmd.clone(),
                   opt.args.clone().unwrap_or("".to_owned())
@@ -168,6 +203,7 @@ pub fn load_catalogue() -> Result<AppCataloge, Box<dyn Error>> {
       }
 
       app_cat.push(Rc::new(AppConfig{
+        name: path.file_stem().unwrap().clone().to_str().unwrap().to_owned(),
         conf: Rc::new(ron),
         entries: app_entries,
       }))

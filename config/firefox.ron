@@ -1,11 +1,12 @@
 (
   shorthand: "ff",
-  cmd: "firefox",
+  cmd: "/usr/bin/firefox",
   args: "-P",
   profile_dirs: [
     "~/.mozilla/firefox"
   ],
-  profile_regex: r"^(?:.*\d+.*)\.(\S+)$",
+  profile_filename: Some("profiles.ini"),
+  profile_regex: r"\[Profile\d+\]\nName=(.+)\n",
   opt_entries: Some([
     (
       name: "Manage",

@@ -6,6 +6,7 @@
     "~/.vscode",
     "~/",
   ],
+  profile_filename: None,
   profile_regex: r"^(.*)\.code-workspace$",
   opt_entries: None,
   icon: Some("com.visualstudio.code"),
