@@ -114,11 +114,12 @@ impl <W: AsyncWrite + Unpin> App<W> {
     if let Some(line) = self.results.get(id as usize) {
       info!("launching result {}: {}", &id, &line);
       match line.split_once(' ') {
-        Some((_cmd, _arg)) => {
-          info!("{}###{}", &_cmd, &_arg);
-          let args: Vec<String> = line.split(' ').map(|a| a.to_string()).collect();
-          args.iter().for_each(|a| info!("{}", a));
-          let _ = Command::new("sh").arg("-c").args(args).spawn();
+        Some((cmd, arg)) => {
+          info!("{}###{}", &cmd, &arg);
+          let args: Vec<String> = arg.split(' ').map(|a| a.to_string()).collect();
+          let mut proc = Command::new(&cmd);
+          proc.args(&args);
+          let _ = proc.spawn();
         },
         None => {
           let _ = Command::new(line).spawn();
