@@ -1,7 +1,7 @@
 (
   shorthand: "ff",
   cmd: "/usr/bin/firefox",
-  args: "-P",
+  args: "-new-instance -P",
   profile_dirs: [
     "~/.mozilla/firefox"
   ],

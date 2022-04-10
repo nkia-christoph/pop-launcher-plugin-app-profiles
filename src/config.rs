@@ -11,7 +11,6 @@ use ron::de::from_reader;
 use serde::Deserialize;
 use serde_regex;
 use std::{
-  env::current_dir,
   error::Error,
   fs::{
     File,
@@ -25,7 +24,6 @@ use std::{
 
 const CONFIG_PAT: &str = "/config/*.ron";
 
-#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct Ron {
   pub shorthand: String,
@@ -41,7 +39,6 @@ pub struct Ron {
   pub icon: Option<String>,
 }
 
-#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct OptEntry{
   name: String,
@@ -125,7 +122,7 @@ pub fn load_catalogue(path: PathBuf) -> Result<AppCataloge, Box<dyn Error>> {
                 cmd: [
                   ron.cmd.clone(),
                   ron.args.clone(),
-                  format!("'{}'", name)
+                  name.to_owned()
                 ].join(" "),
               }));
               info!("[OK] matched profilefile {}", &name);
