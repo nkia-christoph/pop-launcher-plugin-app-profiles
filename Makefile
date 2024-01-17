@@ -20,11 +20,11 @@ build_release: test
 
 cp_config_user:
 	install -Dm0764 $(realpath .)/plugin.ron ${USER_PATH}/plugin.ron
-	install -Dm0764 $(realpath ${CONFIG_DIR})/*.ron ${USER_PATH}/${CONFIG_DIR}
+	install -Dm0764 $(realpath ${CONFIG_DIR})/*.ron ${USER_PATH}/${CONFIG_DIR}/*.ron
 
 cp_config_system:
 	install -Dm0774 $(realpath .)/plugin.ron ${SYSTEM_PATH}/plugin.ron
-	install -Dm0774 $(realpath ${CONFIG_DIR})/*.ron ${SYSTEM_PATH}/${CONFIG_DIR}
+	install -Dm0774 $(realpath ${CONFIG_DIR})/*.ron ${SYSTEM_PATH}/${CONFIG_DIR}/*.ron
 
 
 test_user: build_test cp_config_user
