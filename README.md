@@ -59,17 +59,26 @@ See [Usage](#usage) for this example in action.
 
 ## Roadmap 🚀
 
-until 0.2.0 & release:
-- [x] 🤪 get it working as a plugin
-
 until 1.0.0:
-- [ ] 🎓 nicer control flow & error handling (match, collect, map, etc.)
-- [ ] 🔧 nicer logging & optional verbose logging
-- [ ] 🏇 proper resource handling (less cloning, more Rc, Cow, Box and shit)
-
-nice to have:
-- [ ] 👥 when installed system-wide, also scan user config dirs
+- [ ] 😎 fuzzyfind app entries
+- [ ] 🤖 impl. autocompletion
+- [ ] 🎓 make it rustier (nicer control flow & error handling, less cloning)
 - [ ] 🗑️ ditch smol for tokio (as the pop/cosmmic guys did)
+- [ ] 🚀 override regex in plugin.ron depending on app configs
+- [ ] 🔧 integrate new pop launcher standard logging
+- [ ] 🏇 proper resource handling (less cloning, more Rc, Cow, Box and shit)
+- [ ] 👥 when installed system-wide, also scan user config dirs
+
+future / nice to have:
+- some basic concurrency
+- find a way to integrate with open window list in launcher &
+  display profile name on open window entry in launcher
+- firefox specific: manage profiles from launcher:
+  - create new
+  - delete old
+  - rename
+  - copy existing
+- vscode specific: add/remove available workspaces from launcher
 
 
 ### Further Reading:
