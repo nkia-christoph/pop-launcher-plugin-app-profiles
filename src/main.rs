@@ -1,271 +1,295 @@
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate log;
 
-use crate::config::*;
-use crate::utils::*;
+use crate::config::{load_catalogue, AppCatalogue, AppConfig};
+use crate::utils::log_file;
 
-use async_std::{
-  io::{
-    Error as AsyncError,
-    ErrorKind::InvalidInput,
-    Result as AsyncResult,
-  },
-};
-use futures_lite::{
-  AsyncWrite,
-  AsyncWriteExt,
-  StreamExt,
-};
+use futures_util::StreamExt;
 use pop_launcher::{
-  async_stdin,
-  async_stdout,
-  IconSource,
-  json_input_stream,
-  PluginResponse,
-  PluginSearchResult,
-  Request,
+    async_stdin, async_stdout, json_input_stream, IconSource, PluginResponse, PluginSearchResult,
+    Request,
 };
-use serde_json;
-use simplelog::*;
-use std::{
-  borrow::Cow,
-  io::Result,
-  path::PathBuf,
-  process::Command,
-};
+use shlex::split as shlex_split;
+use simplelog::{CombinedLogger, Config, LevelFilter, WriteLogger};
+use std::{borrow::Cow, io, path::PathBuf, process::Command};
+use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 mod config;
 mod utils;
 
-
-#[async_std::main]
-pub async fn main() {
-
-  let exec_path = std::env::current_exe().expect("couldn't get exec path");
-  let exec_dir: PathBuf = exec_path.parent().unwrap().to_path_buf();
-  let log_dir: PathBuf = exec_dir.join(PathBuf::from("log"));
-
-  CombinedLogger::init(vec![
-    WriteLogger::new(LevelFilter::Info, Config::default(),
-      log_file(&log_dir, "info.log").unwrap()
-    ),
-    //WriteLogger::new(LevelFilter::Warn, Config::default(), log_file("warn.log").unwrap()),
-    //WriteLogger::new(LevelFilter::Error, Config::default(), log_file("error.log").unwrap()),
-  ]).unwrap();
-
-  //error!("test error log verbose? {}", log_verbose());
-  //warn!("test warn");
-  //info!("test info");
-  
-  let mut app = App::new(async_stdout(), exec_dir);
-  app.reload().await.unwrap();
-
-  let mut requests = json_input_stream(async_stdin());
-
-  while let Some(result) = requests.next().await {
-    info!("incoming event...");
-
-    match result {
-      Ok(request) => match request {
-        Request::Activate(id) => app.activate(id).await.unwrap(),
-        // Request::ActivateContext { id, context } => app.activate_context(id, context).await,
-        Request::Complete(id) => app.complete(id).await.unwrap(),
-        // Request::Context(id) => app.context(id).await,
-        Request::Search(query) => app.search(&query).await.unwrap(),
-        Request::Exit => break,
-        _ => (),
-      },
-      Err(why) => {
-        app.send_err("malformed JSON request:").await.unwrap();
-        error!("{}", why);
-      },
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    if let Err(err) = run().await {
+        eprintln!("app-profiles failed: {err}");
     }
-  }
+}
+
+async fn run() -> io::Result<()> {
+    let exec_path = std::env::current_exe()?;
+    let exec_dir = exec_path
+        .parent()
+        .ok_or_else(|| io::Error::other("couldn't get executable directory"))?
+        .to_path_buf();
+
+    init_logger(&exec_dir)?;
+
+    let mut app = App::new(async_stdout(), exec_dir);
+    app.reload().await?;
+
+    let mut requests = json_input_stream(async_stdin());
+    while let Some(result) = requests.next().await {
+        info!("incoming event...");
+
+        match result {
+            Ok(request) => {
+                if let Request::Exit = request {
+                    break;
+                }
+                if let Err(err) = app.handle_request(request).await {
+                    app.send_err(&format!("request failed: {err}")).await?;
+                }
+            }
+            Err(err) => {
+                app.send_err("malformed JSON request").await?;
+                error!("{err}");
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn init_logger(exec_dir: &std::path::Path) -> io::Result<()> {
+    let log_dir = exec_dir.join("log");
+    CombinedLogger::init(vec![WriteLogger::new(
+        LevelFilter::Info,
+        Config::default(),
+        log_file(&log_dir, "info.log")?,
+    )])
+    .map_err(|err| io::Error::other(err.to_string()))
 }
 
 struct App<W> {
-  results: Vec<String>,
-  path: PathBuf,
-  out: W,
-  catalogue: AppCataloge,
+    results: Vec<String>,
+    path: PathBuf,
+    out: W,
+    catalogue: AppCatalogue,
 }
 
-impl <W: AsyncWrite + Unpin> App<W> {
-  fn new(out: W, path: PathBuf) -> Self {
-    Self {
-      results: Vec::with_capacity(128),
-      path,
-      out,
-      catalogue: vec![],
+impl<W: AsyncWrite + Unpin> App<W> {
+    fn new(out: W, path: PathBuf) -> Self {
+        Self {
+            results: Vec::with_capacity(128),
+            path,
+            out,
+            catalogue: Vec::new(),
+        }
     }
-  }
 
-  async fn reload(&mut self) -> Result<()> {
-    info!("reloading...");
-
-    self.catalogue.clear();
-    self.catalogue = load_catalogue(self.path.clone()).unwrap();
-    info!("reloaded");
-
-    Ok(())
-  }
-
-  async fn activate(&mut self, id: u32) -> AsyncResult<()> {
-    info!("activate: {}", &id);
-    if let Some(line) = self.results.get(id as usize) {
-      info!("launching result {}: {}", &id, &line);
-      match line.split_once(' ') {
-        Some((cmd, arg)) => {
-          info!("{}###{}", &cmd, &arg);
-          let args: Vec<String> = arg.split(' ').map(|a| a.to_string()).collect();
-          let mut proc = Command::new(&cmd);
-          proc.args(&args);
-          let _ = proc.spawn();
-        },
-        None => {
-          let _ = Command::new(line).spawn();
-        },
-      }
+    async fn handle_request(&mut self, request: Request) -> io::Result<()> {
+        match request {
+            Request::Activate(id) => self.activate(id).await,
+            Request::Complete(id) => self.complete(id).await,
+            Request::Search(query) => self.search(&query).await,
+            _ => Ok(()),
+        }
     }
-    self.send(PluginResponse::Close).await
-  }
-  
-  async fn complete(&mut self, _id: u32) -> AsyncResult<()> {
-    info!("complete");
-    // do stuff;
-    self.send(PluginResponse::Close).await
-  }
 
-  async fn search(&mut self, query: &str) -> AsyncResult<()> {
-    info!("searching...");
+    async fn reload(&mut self) -> io::Result<()> {
+        info!("reloading...");
+        self.catalogue =
+            load_catalogue(&self.path).map_err(|err| io::Error::other(err.to_string()))?;
+        info!("reloaded");
+        Ok(())
+    }
 
-    let query = query.to_ascii_lowercase();
-    info!("query: {}", &query);
-    let q_shorthand = query[0..2].to_owned();
-    let q_profile = query[3..].to_owned();
-    info!("q_shorthand: {}, q_profile: {}", &q_shorthand, &q_profile);
+    async fn activate(&mut self, id: u32) -> io::Result<()> {
+        info!("activate: {id}");
 
-    let mut id = 0;
-
-    for app_config in self.catalogue.clone().iter() {
-      let app_shorthand = app_config.conf.shorthand.to_ascii_lowercase();
-      let match_app = q_shorthand == app_shorthand;
-      info!("shorthand: {}, match_app: {}", &app_shorthand, &match_app);
-
-      if match_app {
-        for profile in app_config.entries.iter() {
-          let match_profile = profile.name.to_ascii_lowercase().contains(&q_profile);
-          info!("{}, query: {}, match_profile: {}", &profile.name, &query, &match_profile);
-
-          if match_profile {
-            self.send(PluginResponse::Append(PluginSearchResult {
-              id: id as u32,
-              name: profile.name.clone().into(),
-              description: format!("open {} in new window", &profile.name),
-              icon: app_config.conf.icon.as_ref()
-                .map(|icon| IconSource::Name(icon.clone().into())),
-              ..Default::default()
-            })).await.unwrap();
-            self.results.push(profile.cmd.clone().into());
-            id += 1;
-          }
+        if let Some(line) = self.results.get(id as usize) {
+            info!("launching result {id}: {line}");
+            let parts = shlex_split(line)
+                .unwrap_or_else(|| line.split_whitespace().map(str::to_owned).collect());
+            if let Some((cmd, args)) = parts.split_first() {
+                let _ = Command::new(cmd).args(args).spawn();
+            }
         }
 
-        if id == 0 {
-          self.send(PluginResponse::Append(PluginSearchResult {
-            id: id as u32,
-            name: format!("Unknown profile - try one of the following"),
-            description: format!("...or add a profile of that name."),
+        self.send(PluginResponse::Close).await
+    }
+
+    async fn complete(&mut self, _id: u32) -> io::Result<()> {
+        info!("complete");
+        self.send(PluginResponse::Close).await
+    }
+
+    async fn search(&mut self, query: &str) -> io::Result<()> {
+        info!("searching...");
+        self.results.clear();
+
+        let normalized = query.to_ascii_lowercase();
+        let (q_shorthand, q_profile) = parse_query(&normalized);
+        info!("query: {normalized}, shorthand: {q_shorthand}, profile: {q_profile}");
+
+        let mut id = 0_u32;
+
+        if let Some(app_config) = self
+            .catalogue
+            .iter()
+            .find(|cfg| cfg.conf.shorthand.eq_ignore_ascii_case(q_shorthand))
+            .cloned()
+        {
+            for profile in app_config
+                .entries
+                .iter()
+                .filter(|entry| entry.name.to_ascii_lowercase().contains(q_profile))
+            {
+                self.send(PluginResponse::Append(PluginSearchResult {
+                    id,
+                    name: profile.name.clone(),
+                    description: profile_description(profile),
+                    icon: app_config
+                        .conf
+                        .icon
+                        .as_ref()
+                        .map(|icon| IconSource::Name(icon.clone().into())),
+                    ..Default::default()
+                }))
+                .await?;
+                self.results.push(profile.cmd.clone());
+                id += 1;
+            }
+
+            if id == 0 {
+                self.send_unknown_profile(&app_config, &mut id).await?;
+            }
+        } else {
+            self.send_unknown_shorthand(&mut id).await?;
+        }
+
+        self.send(PluginResponse::Finished).await
+    }
+
+    async fn send_unknown_profile(
+        &mut self,
+        app_config: &AppConfig,
+        id: &mut u32,
+    ) -> io::Result<()> {
+        self.send(PluginResponse::Append(PluginSearchResult {
+            id: *id,
+            name: "Unknown profile - try one of the following".into(),
+            description: "...or add a profile of that name.".into(),
             icon: Some(IconSource::Name(Cow::Borrowed("dialog-error"))),
             ..Default::default()
-          })).await.unwrap();
-          self.results.push(format!(""));
-          id += 1;
+        }))
+        .await?;
+        self.results.push(String::new());
+        *id += 1;
 
-          for profile in app_config.entries.iter() {
+        for profile in &app_config.entries {
             self.send(PluginResponse::Append(PluginSearchResult {
-              id: id as u32,
-              name: profile.name.clone().into(),
-              description: format!("Open {} profile in new window", &profile.name),
-              icon: app_config.conf.icon.as_ref()
-                .map(|icon| IconSource::Name(icon.clone().into())),
-              ..Default::default()
-            })).await.unwrap();
-            self.results.push(profile.cmd.clone().into());
-            id += 1;
-          }
+                id: *id,
+                name: profile.name.clone(),
+                description: profile_description(profile),
+                icon: app_config
+                    .conf
+                    .icon
+                    .as_ref()
+                    .map(|icon| IconSource::Name(icon.clone().into())),
+                ..Default::default()
+            }))
+            .await?;
+            self.results.push(profile.cmd.clone());
+            *id += 1;
         }
-        break;
-      }
+
+        Ok(())
     }
 
-    if id == 0 {
-      /*
-      append!({
-        id: id as u32,
-        name: format!("Unknown shorthand - try one of the following"),
-        description: format!("...or add/edit a ron file in the config folder"),
-        icon: Some(IconSource::Name(Cow::Borrowed("system-help-symbolic"))),
-        ..Default::default()
-      }).await.unwrap();
-      */
-      self.send(PluginResponse::Append(PluginSearchResult {
-        id: id as u32,
-        name: format!("Unknown shorthand - try one of the following"),
-        description: format!("...or add/edit a ron file in the config folder"),
-        icon: Some(IconSource::Name(Cow::Borrowed("system-help-symbolic"))),
-        ..Default::default()
-      })).await.unwrap();
-      self.results.push(format!(""));
-      id += 1;
-
-      for app_config in self.catalogue.clone().iter() {
+    async fn send_unknown_shorthand(&mut self, id: &mut u32) -> io::Result<()> {
         self.send(PluginResponse::Append(PluginSearchResult {
-          id: id as u32,
-          name: app_config.conf.shorthand.clone().into(),
-          description: format!("Try the shorthand for {}!", &app_config.name),
-          icon: app_config.conf.icon.as_ref()
-            .map(|icon| IconSource::Name(icon.clone().into())),
-          ..Default::default()
-        })).await.unwrap();
-        self.results.push(app_config.conf.shorthand.clone().into());
-        id += 1;
-      }
+            id: *id,
+            name: "Unknown shorthand - try one of the following".into(),
+            description: "...or add/edit a ron file in the config folder".into(),
+            icon: Some(IconSource::Name(Cow::Borrowed("system-help-symbolic"))),
+            ..Default::default()
+        }))
+        .await?;
+        self.results.push(String::new());
+        *id += 1;
 
-      if id == 1 {
-        self.send_err("no profiles").await.unwrap();
-      }
+        let shorthand_results: Vec<(String, String, Option<String>)> = self
+            .catalogue
+            .iter()
+            .map(|cfg| {
+                (
+                    cfg.conf.shorthand.clone(),
+                    cfg.name.clone(),
+                    cfg.conf.icon.clone(),
+                )
+            })
+            .collect();
+
+        for (shorthand, name, icon) in shorthand_results {
+            self.send(PluginResponse::Append(PluginSearchResult {
+                id: *id,
+                name: shorthand.clone(),
+                description: format!("Try the shorthand for {}!", name),
+                icon: icon.map(|icon| IconSource::Name(icon.into())),
+                ..Default::default()
+            }))
+            .await?;
+            self.results.push(shorthand);
+            *id += 1;
+        }
+
+        if *id == 1 {
+            self.send_err("no profiles").await?;
+        }
+
+        Ok(())
     }
 
-    self.send(PluginResponse::Finished).await
-  }
+    async fn send(&mut self, response: PluginResponse) -> io::Result<()> {
+        let mut response_json =
+            serde_json::to_string(&response).map_err(|err| io::Error::other(err.to_string()))?;
+        response_json.push('\n');
 
-  async fn send(&mut self, response: PluginResponse) -> Result<()> {
-    let mut response_json = serde_json::to_string(&response)
-      .map_err(|err| AsyncError::new(InvalidInput, err))?;
+        info!("sending... {response_json}");
 
-    response_json.push('\n');
+        self.out.write_all(response_json.as_bytes()).await?;
+        self.out.flush().await?;
 
-    info!("sending... {}", &response_json);
+        info!("sent");
+        Ok(())
+    }
 
-    self.out.write_all(response_json.as_bytes()).await?;
-    self.out.flush().await?;
+    async fn send_err(&mut self, err: &str) -> io::Result<()> {
+        error!("{err}");
+        self.send(PluginResponse::Append(PluginSearchResult {
+            id: 0,
+            name: "Error".to_owned(),
+            description: err.to_owned(),
+            icon: None,
+            ..Default::default()
+        }))
+        .await?;
+        self.send(PluginResponse::Finished).await
+    }
+}
 
-    info!("sent");
-
-    Ok(())
-  }
-
-  async fn send_err(&mut self, e: &str) -> Result<()> {
-    error!("{}", &e);
-    self.send(PluginResponse::Append(PluginSearchResult {
-      id: 0,
-      name: "Error".to_owned(),
-      description: e.to_owned(),
-      icon: None,
-      ..Default::default()
-    }),).await?;
-    self.send(PluginResponse::Finished).await?;
-
-    Ok(())
-  }
+fn profile_description(profile: &config::AppEntry) -> String {
+    if profile.desc.trim().is_empty() {
+        format!("open {} in new window", profile.name)
+    } else {
+        profile.desc.clone()
+    }
+}
+fn parse_query(query: &str) -> (&str, &str) {
+    let trimmed = query.trim();
+    if let Some((shorthand, profile)) = trimmed.split_once(' ') {
+        (shorthand.trim(), profile.trim())
+    } else {
+        (trimmed, "")
+    }
 }
