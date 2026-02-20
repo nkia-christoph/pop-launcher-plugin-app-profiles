@@ -40,7 +40,7 @@ install_user: build_release cp_config_user
 install_system: build_release cp_config_system
 	install -Dm0774 $(realpath target/release)/app-profiles ${SYSTEM_PATH}/app-profiles
 
-
+console
 uninstall_user:
 	rm -r ${USER_PATH}
 

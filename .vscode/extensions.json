@@ -1,6 +1,10 @@
 {
   "recommendations": [
     "a5huynh.vscode-ron",
-    "rust-lang.rust"
-  ]
+    "EditorConfig.EditorConfig",
+    "rust-lang.rust-analyzer",
+    "fill-labs.dependi",
+    "kokakiwi.vscode-just",
+    "github.vscode-github-actions"
+  ],
 }
